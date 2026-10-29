@@ -22,4 +22,5 @@ print(df["SaleType"].unique())
 def objective_fn(trial: optuna.Trial):
 
     strategy = trial.suggest_categorical("trial", ["mean", "median", "most_frequent"])
-    imputer = SimpleImputer()
+    imputer = SimpleImputer(strategy=strategy)
+    imputer.fit(df)
