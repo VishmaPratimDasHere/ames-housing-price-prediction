@@ -21,25 +21,45 @@ df = pd.read_csv(path / "train.csv", index_col=None)
 print(df.head())
 
 df_train, df_test, y_train, y_test = train_test_split(
-    df, test_size=0.2, train_size=0.8, random_state=42, shuffle=True
+    df[[col for col in df.columns if not col == "SalePrice"]],
+    df[["SalePrice"]],
+    test_size=0.2,
+    train_size=0.8,
+    random_state=42,
+    shuffle=True,
 )
+
+df_train, df_validation, y_train, y_validation = train_test_split()
 
 
 def objective_fn(trial: optuna.Trial):
 
-    cat_cols = [col for col in df.columns() if col not in ["int64", "float64"]]
+    # dealing with categorical values
+
+    # step 1: impute
+    cat_cols = [col for col in df_.columns if col not in ["int64", "float64"]]
     cat_df = df[cat_cols]
     cat_imputer = SimpleImputer(strategy="most_frequent")
+    cat_df = cat_imputer.fit_transform(cat_df)
 
+    # step 2: binarize
     multi_binarizer = MultiLabelBinarizer()
     multi_binarizer.fit(cat_df)
     cat_df = multi_binarizer.transform(cat_df)
 
+    # dealing with numerical cols
+
+    # step 1: impute
     num_strategy = trial.suggest_categorical(
         "trial", ["mean", "median", "most_frequent"]
     )
     num_imputer = SimpleImputer(strategy=num_strategy)
 
-    num_df = df[[col for col in df.columns if df[col].dtype in ["int64", "float64"]]]
-    num_imputer.fit(num_df)
-    num_df = num_imputer.transform(num_df)
+    num_df: pd.DataFrame = df[
+        [col for col in df.columns if df[col].dtype in ["int64", "float64"]]
+    ]
+    num_df = num_imputer.fit_transform(num_df)
+
+    num_df.merge(right=cat_df, how="outer")
+
+    # Training the model
