@@ -5,6 +5,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.linear_model import LinearRegression
 import pandas as pd
+import numpy as np
 import pathlib
 import optuna
 
@@ -37,7 +38,9 @@ def objective_fn(trial: optuna.Trial):
 
     # step 1: impute
     cat_cols = [
-        col for col in df_train.columns if df[[col]].dtype not in ["int64", "float64"]
+        col
+        for col in df_train.columns
+        if df_train[col].dtype not in ["int64", "float64"]
     ]
     cat_df = df_train[cat_cols]
     cat_imputer = SimpleImputer(strategy="most_frequent")
@@ -56,20 +59,25 @@ def objective_fn(trial: optuna.Trial):
     )
     num_imputer = SimpleImputer(strategy=num_strategy)
 
-    num_df: pd.DataFrame = df_train[
+    num_df = df_train[
         [col for col in df_train.columns if df_train[col].dtype in ["int64", "float64"]]
     ]
-    num_df = num_imputer.fit_transform(num_df)
+    num_df = num_imputer.fit_transform(num_df.to_numpy())
 
-    new_df = num_df.merge(right=cat_df, how="outer")
+    new_df = np.hstack((num_df, cat_df))
 
     # Training the model
     model = LinearRegression(n_jobs=5)
     kfold = KFold(n_splits=5, shuffle=True)
     scores = cross_val_score(
         model,
-        X=new_df[[col for col in new_df.columns if not col == "SalePrice"]],
-        y=new_df["SalePrice"],
+        X=new_df,
+        y=y_train,
         cv=kfold,
     )
-    print(scores.mean())
+    print(sum(scores) / len(scores))
+    return sum(scores) / len(scores)
+
+
+study = optuna.create_study(direction="minimize")
+study.optimize(func=objective_fn, n_trials=500, n_jobs=2, gc_after_trial=True)
