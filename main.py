@@ -1,8 +1,9 @@
 import kagglehub
 from sklearn.feature_selection import SelectKBest, mutual_info_regression
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, KFold, cross_val_score
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.linear_model import LinearRegression
 import pandas as pd
 import pathlib
 import optuna
@@ -29,16 +30,16 @@ df_train, df_test, y_train, y_test = train_test_split(
     shuffle=True,
 )
 
-df_train, df_validation, y_train, y_validation = train_test_split()
-
 
 def objective_fn(trial: optuna.Trial):
 
     # dealing with categorical values
 
     # step 1: impute
-    cat_cols = [col for col in df_.columns if col not in ["int64", "float64"]]
-    cat_df = df[cat_cols]
+    cat_cols = [
+        col for col in df_train.columns if df[[col]].dtype not in ["int64", "float64"]
+    ]
+    cat_df = df_train[cat_cols]
     cat_imputer = SimpleImputer(strategy="most_frequent")
     cat_df = cat_imputer.fit_transform(cat_df)
 
@@ -55,11 +56,20 @@ def objective_fn(trial: optuna.Trial):
     )
     num_imputer = SimpleImputer(strategy=num_strategy)
 
-    num_df: pd.DataFrame = df[
-        [col for col in df.columns if df[col].dtype in ["int64", "float64"]]
+    num_df: pd.DataFrame = df_train[
+        [col for col in df_train.columns if df_train[col].dtype in ["int64", "float64"]]
     ]
     num_df = num_imputer.fit_transform(num_df)
 
-    num_df.merge(right=cat_df, how="outer")
+    new_df = num_df.merge(right=cat_df, how="outer")
 
     # Training the model
+    model = LinearRegression(n_jobs=5)
+    kfold = KFold(n_splits=5, shuffle=True)
+    scores = cross_val_score(
+        model,
+        X=new_df[[col for col in new_df.columns if not col == "SalePrice"]],
+        y=new_df["SalePrice"],
+        cv=kfold,
+    )
+    print(scores.mean())
