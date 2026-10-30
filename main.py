@@ -80,5 +80,5 @@ def objective_fn(trial: optuna.Trial):
 
 
 study = optuna.create_study(direction="maximize")
-study.optimize(func=objective_fn, n_trials=500, n_jobs=2, gc_after_trial=True)
+study.optimize(func=objective_fn, n_trials=10000, n_jobs=2, gc_after_trial=True)
 print(study.best_params)
