@@ -79,5 +79,9 @@ def objective_fn(trial: optuna.Trial):
     return sum(scores) / len(scores)
 
 
+<<<<<<< Updated upstream
 study = optuna.create_study(direction="minimize")
+=======
+study = optuna.create_study(direction="maximize")
+>>>>>>> Stashed changes
 study.optimize(func=objective_fn, n_trials=500, n_jobs=2, gc_after_trial=True)
