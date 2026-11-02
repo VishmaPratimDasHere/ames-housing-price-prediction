@@ -32,6 +32,17 @@ df_train, df_test, y_train, y_test = train_test_split(
 )
 
 
+def train_and_eval(train_df, test_df, y_train):
+    cat_cols = [
+        col
+        for col in train_df.columns
+        if train_df[col].dtype not in ["int64", "float64"]
+    ]
+    cat_df = train_df[cat_cols]
+    cat_imputer = SimpleImputer(strategy="most_frequent")
+    cat_data = cat_imputer.fit_transform(cat_df)
+
+
 def objective_fn(trial: optuna.Trial):
 
     # dealing with categorical values
@@ -82,3 +93,5 @@ def objective_fn(trial: optuna.Trial):
 study = optuna.create_study(direction="maximize")
 study.optimize(func=objective_fn, n_trials=10000, n_jobs=2, gc_after_trial=True)
 print(study.best_params)
+
+model = LinearRegression()
