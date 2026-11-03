@@ -27,8 +27,8 @@ def train_and_eval(
         cat_imputer = SimpleImputer(strategy="most_frequent")
         cat_data = cat_imputer.fit_transform(cat_df)
         multi_binarizer = MultiLabelBinarizer()
-        multi_binarizer.fit(cat_df)
-        cat_df = multi_binarizer.transform(cat_df)
+        multi_binarizer.fit(cat_data)
+        cat_df = multi_binarizer.transform(cat_data)
 
         num_strategy = study.best_params["num_strategy"]
         num_imputer = SimpleImputer(strategy=num_strategy)
