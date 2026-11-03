@@ -15,8 +15,9 @@ def train_and_eval(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
     y_train: pd.DataFrame,
+    y_test: pd.DataFrame,
     study: optuna.Study,
-) -> int:
+) -> float:
     try:
         cat_cols = [
             col
@@ -32,25 +33,32 @@ def train_and_eval(
 
         num_strategy = study.best_params["num_strategy"]
         num_imputer = SimpleImputer(strategy=num_strategy)
-        num_df = df_train[
-            [
-                col
-                for col in df_train.columns
-                if df_train[col].dtype in ["int64", "float64"]
-            ]
+        num_cols = [
+            col
+            for col in df_train.columns
+            if df_train[col].dtype in ["int64", "float64"]
         ]
+        num_df = df_train[num_cols]
         num_df = num_imputer.fit_transform(num_df.to_numpy())
 
-        train_df = np.concatenate((cat_df, num_df), axis=1)
+        X = np.concatenate((cat_df, num_df), axis=1)
 
-        model = LinearRegression()
+        model = LinearRegression(n_jobs=5)
 
-        model.fit(X=train_df, y=y_train)
+        model.fit(X=X, y=y_train)
 
-        pd.DataFrame({f"{y_train.columns[0]}": model.predict(test_df)}).to_csv(
-            path.cwd() / "y_predicted.csv"
-        )
-        return 1
+        cat_data = cat_imputer.transform(test_df[cat_cols])
+        cat_data = multi_binarizer.transform(cat_data)
+
+        num_data = test_df[num_cols]
+        num_data = num_imputer.transform(num_data)
+
+        test_data = np.concatenate((cat_data, num_data), axis=1)
+
+        test_y_hat = model.predict(test_data)
+        error = np.power((test_y_hat - y_test.to_numpy()), 2)
+
+        return np.mean(error, axis=0)
     except Exception as e:
         raise Exception(f"Error encountered:\n{repr(e)}")
 
@@ -136,5 +144,8 @@ study = optuna.create_study(direction="maximize")
 study.optimize(func=objective_fn, n_trials=200, n_jobs=2, gc_after_trial=True)
 print(study.best_params)
 
-if train_and_eval(train_df=df_train, test_df=df_test, y_train=y_train, study=study):
-    print("Done")
+print(
+    train_and_eval(
+        train_df=df_train, test_df=df_test, y_train=y_train, y_test=y_test, study=study
+    )
+)
