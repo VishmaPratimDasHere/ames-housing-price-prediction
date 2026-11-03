@@ -30,7 +30,7 @@ def train_and_eval(
         multi_binarizer.fit(cat_df)
         cat_df = multi_binarizer.transform(cat_df)
 
-        num_strategy = study.best_params[""]
+        num_strategy = study.best_params["num_strategy"]
         num_imputer = SimpleImputer(strategy=num_strategy)
         num_df = df_train[
             [
@@ -133,7 +133,7 @@ df_train, df_test, y_train, y_test = train_test_split(
 
 
 study = optuna.create_study(direction="maximize")
-study.optimize(func=objective_fn, n_trials=10000, n_jobs=2, gc_after_trial=True)
+study.optimize(func=objective_fn, n_trials=200, n_jobs=2, gc_after_trial=True)
 print(study.best_params)
 
 if train_and_eval(train_df=df_train, test_df=df_test, y_train=y_train, study=study):
