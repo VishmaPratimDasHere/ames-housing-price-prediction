@@ -120,9 +120,7 @@ def objective_fn(trial: optuna.Trial) -> float:
 kagglehub.login()
 
 path = pathlib.Path(
-    kagglehub.competition_download(
-        "house-prices-advanced-regression-techniques", force_download=True
-    )
+    kagglehub.competition_download("house-prices-advanced-regression-techniques")
 )
 
 print("Path to competition files:", path)
