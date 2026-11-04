@@ -9,6 +9,12 @@ import numpy as np
 import pathlib
 import optuna
 from pathlib import Path
+import dotenv
+import os
+
+dotenv.load_dotenv()
+
+os.system(f"export KAGGLE_API_TOKEN={os.environ.get('KAGGLE_API_TOKEN')}")
 
 
 def train_and_eval(
@@ -17,50 +23,60 @@ def train_and_eval(
     y_train: pd.DataFrame,
     y_test: pd.DataFrame,
     study: optuna.Study,
+    eval: bool = True,
 ) -> float:
-    try:
-        cat_cols = [
-            col
-            for col in train_df.columns
-            if train_df[col].dtype not in ["int64", "float64"]
-        ]
-        cat_df = train_df[cat_cols]
-        cat_imputer = SimpleImputer(strategy="most_frequent")
-        cat_data = cat_imputer.fit_transform(cat_df)
-        multi_binarizer = MultiLabelBinarizer()
-        multi_binarizer.fit(cat_data)
-        cat_df = multi_binarizer.transform(cat_data)
 
-        num_strategy = study.best_params["num_strategy"]
-        num_imputer = SimpleImputer(strategy=num_strategy)
-        num_cols = [
-            col
-            for col in df_train.columns
-            if df_train[col].dtype in ["int64", "float64"]
-        ]
-        num_df = df_train[num_cols]
-        num_df = num_imputer.fit_transform(num_df.to_numpy())
+    cat_cols = [
+        col
+        for col in train_df.columns
+        if train_df[col].dtype not in ["int64", "float64"]
+    ]
+    cat_df = pd.concat((train_df[cat_cols], test_df[cat_cols]), axis=0)
+    cat_imputer = SimpleImputer(strategy="most_frequent")
+    cat_data = cat_imputer.fit_transform(cat_df)
+    multi_binarizer = MultiLabelBinarizer()
+    multi_binarizer.fit(cat_data)
+    cat_df = multi_binarizer.transform(cat_data)
 
-        X = np.concatenate((cat_df, num_df), axis=1)
+    num_strategy = study.best_params["num_strategy"]
+    num_imputer = SimpleImputer(strategy=num_strategy)
+    num_cols = [
+        col for col in df_train.columns if df_train[col].dtype in ["int64", "float64"]
+    ]
+    num_df = pd.concat((train_df[num_cols], test_df[num_cols]), axis=0)
+    num_df = num_imputer.fit_transform(num_df.to_numpy())
 
-        model = LinearRegression(n_jobs=5)
+    X = np.concatenate((cat_df, num_df), axis=1)
+    y = pd.concat((y_train, y_test), axis=0)
 
-        model.fit(X=X, y=y_train)
+    model = LinearRegression(n_jobs=5)
 
-        cat_data = cat_imputer.transform(test_df[cat_cols])
-        cat_data = multi_binarizer.transform(cat_data)
+    model.fit(X=X, y=y)
+    y_hat = model.predict(X)
 
-        num_data = test_df[num_cols]
-        num_data = num_imputer.transform(num_data)
+    if eval:
+        x = pd.read_csv(path / "test.csv", index_col=None)
+        print(x.head())
+        id = x[["Id"]]
+        x = x.drop(columns="Id")
+        print(x.head())
+        cat = x[cat_cols]
+        cat = cat_imputer.transform(cat)
+        cat = multi_binarizer.transform(cat)
 
-        test_data = np.concatenate((cat_data, num_data), axis=1)
+        num = x[num_cols]
+        num = num_imputer.transform(num)
 
-        test_y_hat = model.predict(test_data)
-        error = np.power((test_y_hat - y_test.to_numpy()), 2)
+        y_pred = model.predict(np.concat((cat, num), axis=1))
+        print("-" * 50)
+        print(y_pred[:5, :])
 
-        return np.mean(error, axis=0)
-    except Exception as e:
-        raise Exception(f"Error encountered:\n{repr(e)}")
+        x["SalePrice"] = y_pred
+
+        x = pd.concat((id, x[["SalePrice"]]), axis=1)
+        x.to_csv(pathlib.Path.cwd() / "eval.csv", index=False)
+
+    return np.mean(np.pow((y.to_numpy() - y_hat), 2))
 
 
 def objective_fn(trial: optuna.Trial) -> float:
@@ -125,7 +141,7 @@ path = pathlib.Path(
 
 print("Path to competition files:", path)
 
-df = pd.read_csv(path / "train.csv", index_col=None)
+df = pd.read_csv(path / "train.csv", index_col=None).drop(columns="Id")
 print(df.head())
 
 df_train, df_test, y_train, y_test = train_test_split(
