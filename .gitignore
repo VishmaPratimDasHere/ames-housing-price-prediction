@@ -1,2 +1,6 @@
-.vscode/
+# HIDDEN
 .*
+.vscode/
+
+# CSV DATASET FILES
+*.csv
